@@ -21,7 +21,7 @@ def generateCircle(lat, lon, radius, options={}):
         color: '{options.get('color', "red")}',
         fillColor: '{options.get('color', "red")}',
         fillOpacity: {options.get('opacity', "0.0")},
-        radius: ${radius}
+        radius: {radius}
     }})'''
 
 def generateMarker(lat, lon, title):
@@ -30,7 +30,7 @@ def generateMarker(lat, lon, title):
 def generateAddToFeaturesAndMap(featureCode):
     return f"features.push({featureCode}.addTo(map));\n"
 
-def plotBeacons(beacons, actual, preds, options={}):
+def plotBeacons(beacons, preds=[], centroid=None, actual=None, options={}):
     featureJS = ""
     for beacon in beacons:
         featureJS += generateAddToFeaturesAndMap(generateDonut(beacon.point.lat, beacon.point.lon, beacon.limits[1], beacon.limits[0], {'color': "red"}))
@@ -40,10 +40,10 @@ def plotBeacons(beacons, actual, preds, options={}):
         featureJS += generateAddToFeaturesAndMap(generateMarker(actual.lat, actual.lon, 'actual'))
     
     for pred in preds:
-       featureJS += generateAddToFeaturesAndMap(generateMarker(pred.lat, pred.lon, 'pred'))
+        featureJS += generateAddToFeaturesAndMap(generateMarker(pred.lat, pred.lon, 'pred'))
 
-    #if(centroid):
-    #    featureJS += generateAddToFeaturesAndMap(generateCircle(centroid.point.lat, centroid.point.lon, centroid.err, {color: 'blue', opacity: "0.1"}))
+    if centroid:
+        featureJS += generateAddToFeaturesAndMap(generateCircle(centroid.point.lat, centroid.point.lon, centroid.radius, {'color': 'blue', 'opacity': "0.1"}))
 
     output = chevron.render(template, {'features': featureJS});
     
@@ -69,6 +69,24 @@ class Beacon:
     def __init__(self, point, limits):
         self.point = point
         self.limits = limits
+
+class Centroid:
+    def __init__(self, point, radius):
+        self.point = point
+        self.radius = radius
+        self.n = 0
+
+    def add_point(self, point):
+        self.point.lat += point.lat
+        self.point.lon += point.lon
+        self.n += 1
+
+    def divide(self):
+        self.point.lat /= self.n
+        self.point.lon /= self.n
+    
+    def set_radius(self, points):
+        self.radius = max([great_circle_distance(p, self.point) for p in points])
 
 def get_point_at_distance_and_bearing(point, distance, bearing):
     R = 6378100 #Radius of the Earth
@@ -262,7 +280,7 @@ center = Point(45,45)
 beacon_points = generate_triangle_points(center, 1300)
 
 print(beacon_points)
-beacons = simulate_service_distances(center, beacon_points, buckets)
+beacons = simulate_service_distances(get_point_at_distance_and_bearing(center, 1300, 300), beacon_points, buckets)
 
 furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
 
@@ -277,21 +295,40 @@ furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
 # initial_location: (lat, long)
 # locations: [ (lat1, long1), ... ]
 # distances: [ distance1,     ... ] 
-result = minimize(
-    overlap_error,                         # The error function
-    [furthest_beacon_point.lat, furthest_beacon_point.lon],            # The initial guess
-    args=(beacons[1:], beacons[0:1], []), # Additional parameters for mse
-    method='L-BFGS-B',           # The optimisation algorithm
-    #jac=grad_func,
-    options={
-        'ftol':1e-5,         # Tolerance
-        'maxiter': 1e+7      # Maximum iterations
-    })
-location = result.x
-print(result)
-pt = Point(*result.x)
-print(pt)
 
-plotBeacons(beacons, center, [pt])
+def find_outer_bound_for_beacon(beacons, start_point, optimize_index=None, maximize=True):
+    optimize_beacon = beacons[optimize_index]
+    maximize_beacons = [optimize_beacon] if maximize else []
+    minimize_beacons = [optimize_beacon] if not maximize else []
+    standard_beacons = beacons[:optimize_index] + beacons[optimize_index+1:]
+    result = minimize(
+        overlap_error,                         # The error function
+        [start_point.lat, start_point.lon],            # The initial guess
+        args=(standard_beacons, maximize_beacons, minimize_beacons), # Additional parameters for mse
+        method='L-BFGS-B',           # The optimisation algorithm
+        #jac=grad_func,
+        options={
+            'ftol':1e-5,         # Tolerance
+            'maxiter': 1e+7      # Maximum iterations
+        })
+
+    pt = Point(*result.x)
+    return pt
+
+bounds  = [find_outer_bound_for_beacon(beacons, furthest_beacon_point, optimize_index=i, maximize=True ) for i in range(len(beacons))]
+bounds += [find_outer_bound_for_beacon(beacons, furthest_beacon_point, optimize_index=i, maximize=False) for i in range(len(beacons))]
+centroid = Centroid(Point(0.0, 0.0), 0.0)
+[centroid.add_point(p) for p in bounds]
+centroid.divide()
+#centroid.set_radius(bounds)
+
+def calculate_furthest_point(x, points):
+    c = Centroid(Point(*x), 0)
+    c.set_radius(points)
+    return c.radius
+
+result = minimize(calculate_furthest_point, [centroid.point.lat ,centroid.point.lon], bounds, method='L-BFGS-B', options={'ftol': 1e-5, 'maxiter': 1e6})
+centroid = Centroid(Point(*result.x), result.fun)
 
 
+plotBeacons(beacons, actual=center, preds=bounds, centroid=centroid)
