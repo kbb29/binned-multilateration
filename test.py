@@ -278,9 +278,9 @@ buckets = [[0,500], [500,1000], [1000, 2000], [2000, 5000], [5000, 10000], [1000
 
 center = Point(45,45)
 beacon_points = generate_triangle_points(center, 1300)
-
+actual = get_point_at_distance_and_bearing(center, 1300, 300)
 print(beacon_points)
-beacons = simulate_service_distances(get_point_at_distance_and_bearing(center, 1300, 300), beacon_points, buckets)
+beacons = simulate_service_distances(actual, beacon_points, buckets)
 
 furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
 
@@ -331,4 +331,4 @@ result = minimize(calculate_furthest_point, [centroid.point.lat ,centroid.point.
 centroid = Centroid(Point(*result.x), result.fun)
 
 
-plotBeacons(beacons, actual=center, preds=bounds, centroid=centroid)
+plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid)
