@@ -1,5 +1,60 @@
 import math
 from scipy.optimize import minimize
+import pathlib, chevron, os
+
+template = (pathlib.Path(__file__).parent / 'map.mustache').open('r')
+
+
+
+def generateDonut(lat, lon, outerradius, innerradius, options={}) :
+    return f'''L.donut([{lat}, {lon}], {{
+        color: '{options.get('color', 'red')}',
+        fillColor: '{options.get('color', 'red')}',
+        fillOpacity: 0.4,
+        radius: {outerradius},
+        innerRadius: {innerradius}
+    }})'''
+
+def generateCircle(lat, lon, radius, options={}):
+    return f'''L.circle([{lat}, {lon}], {{
+        color: '{options.get('color', "red")}',
+        fillColor: '{options.get('color', "red")}',
+        fillOpacity: {options.get('opacity', "0.0")},
+        radius: ${radius}
+    }})'''
+
+def generateMarker(lat, lon, title):
+    return f"L.marker([{lat}, {lon}], {{title: '{title}'}})"
+
+def generateAddToFeaturesAndMap(featureCode):
+    return f"features.push({featureCode}.addTo(map));\n"
+
+def plotBeacons(beacons, actual, preds, options={}):
+    featureJS = ""
+    for beacon in beacons:
+        featureJS += generateAddToFeaturesAndMap(generateDonut(beacon.point.lat, beacon.point.lon, beacon.limits[1], beacon.limits[0], {'color': "red"}))
+        featureJS += generateAddToFeaturesAndMap(generateMarker(beacon.point.lat, beacon.point.lon, "kevin"))
+
+    if actual:
+        featureJS += generateAddToFeaturesAndMap(generateMarker(actual.lat, actual.lon, 'actual'))
+    
+    for pred in preds:
+       featureJS += generateAddToFeaturesAndMap(generateMarker(pred.lat, pred.lon, 'pred'))
+
+    #if(centroid):
+    #    featureJS += generateAddToFeaturesAndMap(generateCircle(centroid.point.lat, centroid.point.lon, centroid.err, {color: 'blue', opacity: "0.1"}))
+
+    output = chevron.render(template, {'features': featureJS});
+    
+    tag = options.get('tag', 'test')
+
+    fn = pathlib.Path('/tmp') / f'map-{tag}.html'
+    print('fn', fn)
+    with fn.open('w') as fh:
+        fh.write(output)
+
+    print('fn2', fn)
+    os.system(f'xdg-open {fn} &')
 
 class Point():
     def __init__(self, lat, lon):
@@ -87,7 +142,7 @@ def great_circle_distance(ptA, ptB):
 # distances: [ distance1, ... ]
 def overlap_error(x, beacons):
     mse = 0.0
-    pt = Point(x[0], x[1])
+    pt = Point(*x)
     for beacon in beacons:
         distance_calculated = great_circle_distance(pt, beacon.point)
         err = 0
@@ -101,7 +156,7 @@ def overlap_error(x, beacons):
 def grad_func(x, beacons):
     grad = [0.0,0.0]
     for beacon in beacons:
-        dist = great_circle_distance(Point(x[0], x[1]),beacon.point)
+        dist = great_circle_distance(Point(*x),beacon.point)
         if dist < beacon.limits[0]:
             #then gradient is magnitude 1 in the direction from the point to the beacon center
             lat_component = beacon.point.lat - x[0]
@@ -163,11 +218,16 @@ result = minimize(
     [furthest_beacon_point.lat, furthest_beacon_point.lon],            # The initial guess
     args=(beacons), # Additional parameters for mse
     method='L-BFGS-B',           # The optimisation algorithm
-    jac=grad_func,
+    #jac=grad_func,
     options={
         'ftol':1e-5,         # Tolerance
         'maxiter': 1e+7      # Maximum iterations
     })
 location = result.x
 print(result)
+pt = Point(*result.x)
+print(pt)
+
+plotBeacons(beacons, center, [pt])
+
 
