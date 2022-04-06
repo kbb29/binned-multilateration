@@ -3,7 +3,7 @@ from scipy.optimize import minimize
 import pathlib, chevron, os
 from typing import Tuple, List
 
-template = (pathlib.Path(__file__).parent / 'map.mustache').open('r')
+template = (pathlib.Path(__file__).parent / 'map.mustache').open('r').read()
 
 
 
@@ -55,7 +55,7 @@ def plotBeacons(beacons, preds=[], centroid=None, actual=None, options={}):
         fh.write(output)
 
     print('fn2', fn)
-    os.system(f'xdg-open {fn} &')
+    os.system(f'xdg-open {fn}')
 
 class Point():
     def __init__(self, lat, lon):
@@ -278,11 +278,8 @@ buckets = [[0,500], [500,1000], [1000, 2000], [2000, 5000], [5000, 10000], [1000
 
 center = Point(45,45)
 beacon_points = generate_triangle_points(center, 1300)
-actual = get_point_at_distance_and_bearing(center, 1300, 300)
 print(beacon_points)
-beacons = simulate_service_distances(actual, beacon_points, buckets)
 
-furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
 
 #start = Point(52.20472, 0.14056)
 #distance = 15
@@ -312,23 +309,45 @@ def find_outer_bound_for_beacon(beacons, start_point, optimize_index=None, maxim
             'maxiter': 1e+7      # Maximum iterations
         })
 
+    print(result)
     pt = Point(*result.x)
     return pt
-
-bounds  = [find_outer_bound_for_beacon(beacons, furthest_beacon_point, optimize_index=i, maximize=True ) for i in range(len(beacons))]
-bounds += [find_outer_bound_for_beacon(beacons, furthest_beacon_point, optimize_index=i, maximize=False) for i in range(len(beacons))]
-centroid = Centroid(Point(0.0, 0.0), 0.0)
-[centroid.add_point(p) for p in bounds]
-centroid.divide()
-#centroid.set_radius(bounds)
 
 def calculate_furthest_point(x, points):
     c = Centroid(Point(*x), 0)
     c.set_radius(points)
     return c.radius
 
-result = minimize(calculate_furthest_point, [centroid.point.lat ,centroid.point.lon], bounds, method='L-BFGS-B', options={'ftol': 1e-5, 'maxiter': 1e6})
-centroid = Centroid(Point(*result.x), result.fun)
 
+def do_multilat(beacons):
+    furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
+    #get a point in the intersection
 
-plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid)
+    result = minimize(
+        overlap_error,
+        [furthest_beacon_point.lat, furthest_beacon_point.lon],
+        args=(beacons, [], []),
+        method='L-BFGS-B',           # The optimisation algorithm
+        jac=grad_func,
+        options={
+            'ftol':1e-5,         # Tolerance
+            'maxiter': 1e+7      # Maximum iterations
+        })
+
+    print(result)
+    intersection_point = Point(*result.x)
+
+    bounds  = [find_outer_bound_for_beacon(beacons, intersection_point, optimize_index=i, maximize=True ) for i in range(len(beacons))]
+    bounds += [find_outer_bound_for_beacon(beacons, intersection_point, optimize_index=i, maximize=False) for i in range(len(beacons))]
+    centroid = Centroid(Point(0.0, 0.0), 0.0)
+    [centroid.add_point(p) for p in bounds]
+    centroid.divide()
+
+    result = minimize(calculate_furthest_point, [centroid.point.lat ,centroid.point.lon], bounds, method='L-BFGS-B', options={'ftol': 1e-5, 'maxiter': 1e6})
+    return Centroid(Point(*result.x), result.fun), bounds
+
+for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]):
+    beacons = simulate_service_distances(actual, beacon_points, buckets)
+    centroid, bounds = do_multilat(beacons)
+
+    plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
