@@ -1,61 +1,8 @@
 import math
 from scipy.optimize import minimize
-import pathlib, chevron, os
 from typing import Tuple, List
+from plot import plotBeacons
 
-template = (pathlib.Path(__file__).parent / 'map.mustache').open('r').read()
-
-
-
-def generateDonut(lat, lon, outerradius, innerradius, options={}) :
-    return f'''L.donut([{lat}, {lon}], {{
-        color: '{options.get('color', 'red')}',
-        fillColor: '{options.get('color', 'red')}',
-        fillOpacity: 0.4,
-        radius: {outerradius},
-        innerRadius: {innerradius}
-    }})'''
-
-def generateCircle(lat, lon, radius, options={}):
-    return f'''L.circle([{lat}, {lon}], {{
-        color: '{options.get('color', "red")}',
-        fillColor: '{options.get('color', "red")}',
-        fillOpacity: {options.get('opacity', "0.0")},
-        radius: {radius}
-    }})'''
-
-def generateMarker(lat, lon, title):
-    return f"L.marker([{lat}, {lon}], {{title: '{title}'}})"
-
-def generateAddToFeaturesAndMap(featureCode):
-    return f"features.push({featureCode}.addTo(map));\n"
-
-def plotBeacons(beacons, preds=[], centroid=None, actual=None, options={}):
-    featureJS = ""
-    for beacon in beacons:
-        featureJS += generateAddToFeaturesAndMap(generateDonut(beacon.point.lat, beacon.point.lon, beacon.limits[1], beacon.limits[0], {'color': "red"}))
-        featureJS += generateAddToFeaturesAndMap(generateMarker(beacon.point.lat, beacon.point.lon, "kevin"))
-
-    if actual:
-        featureJS += generateAddToFeaturesAndMap(generateMarker(actual.lat, actual.lon, 'actual'))
-    
-    for pred in preds:
-        featureJS += generateAddToFeaturesAndMap(generateMarker(pred.lat, pred.lon, 'pred'))
-
-    if centroid:
-        featureJS += generateAddToFeaturesAndMap(generateCircle(centroid.point.lat, centroid.point.lon, centroid.radius, {'color': 'blue', 'opacity': "0.1"}))
-
-    output = chevron.render(template, {'features': featureJS});
-    
-    tag = options.get('tag', 'test')
-
-    fn = pathlib.Path('/tmp') / f'map-{tag}.html'
-    print('fn', fn)
-    with fn.open('w') as fh:
-        fh.write(output)
-
-    print('fn2', fn)
-    os.system(f'xdg-open {fn}')
 
 class Point():
     def __init__(self, lat, lon):
@@ -334,7 +281,11 @@ def do_multilat(beacons):
             'maxiter': 1e+7      # Maximum iterations
         })
 
-    print(result)
+    if result.fun != 0.0:
+        raise RuntimeError(f'the first minimization did not settle at 0 {result}')
+        
+
+    print('initial minimize', result)
     intersection_point = Point(*result.x)
 
     bounds  = [find_outer_bound_for_beacon(beacons, intersection_point, optimize_index=i, maximize=True ) for i in range(len(beacons))]
@@ -346,8 +297,9 @@ def do_multilat(beacons):
     result = minimize(calculate_furthest_point, [centroid.point.lat ,centroid.point.lon], bounds, method='L-BFGS-B', options={'ftol': 1e-5, 'maxiter': 1e6})
     return Centroid(Point(*result.x), result.fun), bounds
 
-for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]):
-    beacons = simulate_service_distances(actual, beacon_points, buckets)
-    centroid, bounds = do_multilat(beacons)
+if __name__ == '__main__':
+    for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]):
+        beacons = simulate_service_distances(actual, beacon_points, buckets)
+        centroid, bounds = do_multilat(beacons)
 
-    plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
+        plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
