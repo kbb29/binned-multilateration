@@ -8,6 +8,9 @@ class Point():
     def __init__(self, lat, lon):
         self.lat = lat
         self.lon = lon
+    
+    def to_tuple(self):
+        return (self.lat, self.lon)
 
     def __repr__(self) -> str:
         return f'[{self.lat}, {self.lon}]'
@@ -140,8 +143,8 @@ def overlap_error(x, beacons, beacons_maximize, beacons_minimize) -> float:
     errs = [error_component_regular(beacon, pt) for beacon in beacons]
     errs += [error_component_maximize(beacon, pt) for beacon in beacons_maximize]
     errs += [error_component_minimize(beacon, pt) for beacon in beacons_minimize]
-    mse = sum(errs)
-    return mse / len(beacons)
+    return sum(errs)
+    
 
 def grad_component_regular(beacon, pt) -> Tuple[float,float]:
         dist = great_circle_distance(pt,beacon.point)
@@ -207,10 +210,10 @@ def grad_func(x, beacons, maximize_beacons, minimize_beacons) -> List[float]:
 
             grad[0] += lat_component
             grad[1] += lon_component
-    
-    grad[0] /= len(beacons)
-    grad[1] /= len(beacons)
     return grad
+    #grad[0] /= len(beacons)
+    #grad[1] /= len(beacons)
+    #return grad
 
 
 def obfuscate_distance(dist, buckets):
