@@ -1,5 +1,5 @@
 import unittest, math
-from multilat import Point, Beacon, great_circle_distance, get_point_at_distance_and_bearing, get_bearing
+from multilat import Point, Beacon, great_circle_distance, get_point_at_distance_and_bearing, get_bearing, generate_triangle_points
 
 class TestBearingMethods(unittest.TestCase):
 
