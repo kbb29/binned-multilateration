@@ -130,8 +130,15 @@ def error_component_regular(beacon, pt, zero_gradient_within_limits=True):
             #error at bounds = 0
             #error at the center of the bounds = 0.2 * (upper - lower) / 2
             #error everywhere = dist_to_nearest_limit * 0.2
-            dist_to_nearest_limit = min(abs(distance_calculated - beacon.limits[0]), abs(distance_calculated - beacon.limits[1]))
-            err = dist_to_nearest_limit * -0.2
+            #dist_to_nearest_limit = min(abs(distance_calculated - beacon.limits[0]), abs(beacon.limits[1] - distance_calculated))
+            limits_center = (beacon.limits[1] + beacon.limits[0]) / 2
+            dist_from_limits_center = abs(distance_calculated - limits_center)
+            #err = dist_to_nearest_limit * -0.2
+            d = beacon.limits[1] - limits_center
+            a = 1 / (2*d)
+            c = -1 * d / 2
+            err = a * dist_from_limits_center**2 + c
+
         return err
 
 def error_component_maximize(beacon, pt):
@@ -192,20 +199,29 @@ def grad_component_regular(beacon, pt, zero_gradient_within_limits=True) -> Tupl
             return grad_component_norm(lat_component, lon_component, norm_to=1)
         elif zero_gradient_within_limits:
             return 0.0, 0.0
-        elif dist > sum(beacon.limits) / 2:
+        else:
             #we are within the bounds. apply a gentle gradient to nudge the optimizer towards the middle of the bounds
             #set the gradient to 0.2 towards the middle
-            #here we are beyond the middle, so grad is mag 0.2 in the direction from the beacon center to the point
-            lat_component = (pt.lat - beacon.point.lat)
-            lon_component = (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
-            return grad_component_norm(lat_component, lon_component, norm_to=0.2)
-        #we are within the bounds. apply a gentle gradient to nudge the optimizer towards the middle of the bounds
-        #set the gradient to 0.2 towards the middle
-        #here we are closer to the beacon than the middle, so grad is mag 0.2 in the direction from the point to the beacon center
-        lat_component = (beacon.point.lat - pt.lat)
-        lon_component = (beacon.point.lon - pt.lon) * math.cos(math.radians(pt.lat))
-        return grad_component_norm(lat_component, lon_component, norm_to=0.2)
-        
+            #here we are closer to the beacon than the middle, so grad is mag 0.2 in the direction from the point to the beacon center
+            limits_center = (beacon.limits[1] + beacon.limits[0]) / 2
+            dist_from_limits_center = dist - limits_center
+            #err = dist_to_nearest_limit * -0.2
+            d = beacon.limits[1] - limits_center
+            a = 1 / d
+            mag = a * dist_from_limits_center
+
+            #now determine the direction of the gradient based on whether it is beyond the center of the limits or not
+            if dist < limits_center:
+                #if the point is closer to the beacon than the limits_center, then the grad is increasing in direction from point to the beacon
+                lat_component = beacon.point.lat - pt.lat
+                lon_component = (beacon.point.lon - pt.lon) * math.cos(math.radians(pt.lat))
+            else:
+                #if the point is beyond the limits_center, then the grad is increasing in direction from beacon to the point
+                lat_component = pt.lat - beacon.point.lat
+                lon_component = (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
+            
+            return grad_component_norm(lat_component, lon_component, norm_to=mag)
+            
 
 def grad_component_maximize(beacon, pt) -> Tuple[float,float]:
         dist = great_circle_distance(pt,beacon.point)
@@ -268,11 +284,7 @@ def obfuscate_distance(dist, buckets):
 def simulate_service_distances(point, beacon_points, buckets):
     return [Beacon(bp, obfuscate_distance(great_circle_distance(bp, point), buckets)) for bp in beacon_points ]
 
-buckets = [[0,500], [500,1000], [1000, 2000], [2000, 5000], [5000, 10000], [10000, 20000]]
-
-center = Point(45,45)
-beacon_points = generate_triangle_points(center, 1300)
-print(beacon_points)
+#print(beacon_points)
 
 
 #start = Point(52.20472, 0.14056)
@@ -381,11 +393,11 @@ def do_multilat(beacons, tag=''):
             'maxiter': 1e+7      # Maximum iterations
         })
 
-    if result.fun > 0.0:
-        raise RuntimeError(f'the first minimization did not settle at 0 {result}')
-        
     print("initial minimize\n", result)
     intersection_point = Point(*result.x)
+
+    if not all([b.is_within_limits(intersection_point) for b in beacons]):
+        raise RuntimeError(f'the first minimization did not settle within the intersection {result}')
 
     #bounds  = [find_outer_bound_for_beacon(beacons, intersection_point, optimize_index=i, maximize=True ) for i in range(len(beacons))]
     #bounds += [find_outer_bound_for_beacon(beacons, intersection_point, optimize_index=i, maximize=False) for i in range(len(beacons))]
@@ -400,6 +412,10 @@ def do_multilat(beacons, tag=''):
     return Centroid(Point(*result.x), result.fun), bounds
 
 if __name__ == '__main__':
+
+    buckets = [[0,500], [500,1000], [1000, 2000], [2000, 5000], [5000, 10000], [10000, 20000]]
+    center = Point(45,45)
+    beacon_points = generate_triangle_points(center, 1300)
     for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]):
         beacons = simulate_service_distances(actual, beacon_points, buckets)
         centroid, bounds = do_multilat(beacons, tag=str(n))

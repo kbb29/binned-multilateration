@@ -18,10 +18,11 @@ class TestGradMethods(unittest.TestCase):
         
         for beacon in self.beacons:
             self.assertEqual(error_component_regular(beacon, self.center), 0.0)
-            self.assertAlmostEqual(error_component_regular(beacon, self.center, zero_gradient_within_limits=False), -50, delta=50/200)
+            minimum = (beacon.limits[1] - beacon.limits[0]) / -4
+            self.assertAlmostEqual(error_component_regular(beacon, self.center, zero_gradient_within_limits=False), minimum, delta=minimum/-200)
         
-        self.assertEqual(overlap_error([45.0, 45.0], self.beacons, [], [], True), 0.0)
-        self.assertAlmostEqual(overlap_error([45.0, 45.0], self.beacons, [], [], False), -150, delta=150/200)
+        self.assertEqual(overlap_error(self.center.to_tuple(), self.beacons, [], [], True), 0.0)
+        self.assertAlmostEqual(overlap_error(self.center.to_tuple(), self.beacons, [], [], False), -125, delta=150/200)
 
     def test_overlap_at_point0(self):
         self.generate_test_beacons()
@@ -35,7 +36,7 @@ class TestGradMethods(unittest.TestCase):
         self.assertAlmostEqual(error_component_regular(self.beacons[1], self.points[0]), beacon_separation - 1000)
         self.assertAlmostEqual(error_component_regular(self.beacons[2], self.points[0]), beacon_separation - 1000)
     
-        self.assertAlmostEqual(overlap_error([self.points[0].lat, self.points[0].lon], self.beacons, [], [], True), (500.0 + (beacon_separation - 1000)*2) )
+        self.assertAlmostEqual(overlap_error(self.points[0].to_tuple(), self.beacons, [], [], True), (500.0 + (beacon_separation - 1000)*2) / len(self.beacons) )
 
     def test_error_component_maximize(self):
         self.generate_test_beacons()
@@ -70,7 +71,7 @@ class TestGradMethods(unittest.TestCase):
 
     def test_overlap_maximize(self):
         self.generate_test_beacons()
-        self.assertEqual(int(overlap_error([45.0, 45.0], self.beacons[1:], [self.beacons[0]], [], True)), 125)
+        self.assertAlmostEqual(overlap_error(self.center.to_tuple(), self.beacons[1:], [self.beacons[0]], [], True), 41.666667, delta=41.666667/200)
 
 
     def do_gradient_test_at_point(self, test_point, zero_gradient_within_limits):
@@ -86,12 +87,12 @@ class TestGradMethods(unittest.TestCase):
         val_e = overlap_error(test_point_e.to_tuple(), self.beacons, [], [], zero_gradient_within_limits)
         val_w = overlap_error(test_point_w.to_tuple(), self.beacons, [], [], zero_gradient_within_limits)
 
-        print([b.is_within_limits(test_point) for b in self.beacons])
+        #print([b.is_within_limits(test_point) for b in self.beacons])
         grad_approx = [(val_n-val_s)/20, (val_e-val_w)/20]
         grad = grad_func(test_point.to_tuple(), self.beacons, [], [], zero_gradient_within_limits)   
 
-        print(val_n, val_s, val_e, val_w)
-        print(grad, grad_approx)
+        #print(val_n, val_s, val_e, val_w)
+        #print(grad, grad_approx)
         self.assertAlmostEqual(grad[0], grad_approx[0], 2)
         self.assertAlmostEqual(grad[1], grad_approx[1], 2)     
 
