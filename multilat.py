@@ -149,12 +149,12 @@ def error_component_find_bounds_optimize(beacon, pt, maximize):
         if dist > beacon.limits[1]:
             err = (dist - beacon.limits[1])**2
         else:
-            err = (beacon.limits[1] - dist)**1.2
+            err = (beacon.limits[1] - dist)**1.2 / (len(beacons) - 1)
     else:
         if dist < beacon.limits[0]:
             err = (beacon.limits[0] - dist)**2
         else:
-            err = (dist - beacon.limits[0])**1.2
+            err = (dist - beacon.limits[0])**1.2 / (len(beacons) - 1)
     return err
 
 
