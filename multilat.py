@@ -142,20 +142,33 @@ def error_component_regular(beacon, pt):
 
         return err
 
-def error_component_find_bounds(beacon, pt, is_being_optimized):
-    distance_calculated = great_circle_distance(pt, beacon.point)
+def error_component_find_bounds_optimize(beacon, pt, maximize):
+    dist = great_circle_distance(pt, beacon.point)
     err = 0.0
-    if distance_calculated > beacon.limits[1]:
-        err = (distance_calculated - beacon.limits[1])**2
-    elif is_being_optimized:
-        err = (beacon.limits[1] - distance_calculated)**1.2
-    elif distance_calculated < beacon.limits[0]:
-        err = (beacon.limits[0] - distance_calculated)**2
+    if maximize:
+        if dist > beacon.limits[1]:
+            err = (dist - beacon.limits[1])**2
+        else:
+            err = (beacon.limits[1] - dist)**1.2
+    else:
+        if dist < beacon.limits[0]:
+            err = (beacon.limits[0] - dist)**2
+        else:
+            err = (dist - beacon.limits[0])**1.2
+    return err
+
+
+def error_component_find_bounds_other(beacon, pt):
+    dist = great_circle_distance(pt, beacon.point)
+    err = 0.0
+    if dist > beacon.limits[1]:
+        err = (dist - beacon.limits[1])**2
+    elif dist < beacon.limits[0]:
+        err = (beacon.limits[0] - dist)**2
     #we are within the bounds. apply a gentle gradient to nudge the optimizer towards the middle of the bounds
     else:
         err = 0.0
     return err
-
 
 def error_component_maximize(beacon, pt):
         distance_calculated = great_circle_distance(pt, beacon.point)
@@ -185,12 +198,12 @@ def overlap_error(x, beacons) -> float:
     num_beacons = len(beacons) 
     return sum(errs) / num_beacons
 
-def overlap_error_find_bounds(x, beacons, idx_to_optimize) -> float:
+def overlap_error_find_bounds(x, beacons, idx_to_optimize, maximize) -> float:
     mse = 0.0
     pt = Point(*x)
-    errs = [error_component_find_bounds(beacon, pt, is_being_optimized=idx==idx_to_optimize) for idx,beacon in enumerate(beacons)]
-    num_beacons = len(beacons)
-    return sum(errs) / num_beacons
+    errs = [error_component_find_bounds_other(beacon, pt) for beacon in beacons[:idx_to_optimize] + beacons[idx_to_optimize+1:]]
+    errs.append(error_component_find_bounds_optimize(beacons[idx_to_optimize], pt, maximize))
+    return sum(errs) / len(beacons)
 
 #for when we want to optimize the distance only
 def overlap_error_by_distance_from_beacon(x, beacons, target_idx, bearing, minimize=False):
@@ -357,10 +370,11 @@ def find_outer_bounds_for_beacon(beacons, reference_point, target_idx):
     standard_beacons = beacons[:target_idx] + beacons[target_idx+1:]
     #min bound
     start_point = get_point_at_distance_and_bearing(optimize_beacon.point, optimize_beacon.limits[0] * 0.5, reference_bearing)
+    #start_point = reference_point
     result = minimize(
         overlap_error_find_bounds,                         # The error function
-        [start_point.lat, start_point.lon],            # The initial guess
-        args=(standard_beacons, target_idx), # Additional parameters for mse
+        start_point.to_tuple(),            # The initial guess
+        args=(beacons, target_idx, False), # Additional parameters for mse
         method='L-BFGS-B',           # The optimisation algorithm
         #jac=grad_func_find_bounds,
         options={
@@ -374,10 +388,11 @@ def find_outer_bounds_for_beacon(beacons, reference_point, target_idx):
 
     #max bound
     start_point = get_point_at_distance_and_bearing(optimize_beacon.point, optimize_beacon.limits[1] * 1.5, reference_bearing)
+    #start_point = reference_point
     result = minimize(
         overlap_error_find_bounds,                         # The error function
-        [start_point.lat, start_point.lon],            # The initial guess
-        args=(standard_beacons, target_idx), # Additional parameters for mse
+        start_point.to_tuple(),            # The initial guess
+        args=(beacons, target_idx, True), # Additional parameters for mse
         method='L-BFGS-B',           # The optimisation algorithm
         #jac=grad_func_find_bounds,
         options={
