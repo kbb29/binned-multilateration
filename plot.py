@@ -28,15 +28,15 @@ def generateAddToFeaturesAndMap(featureCode):
 
 def plotBeacons(beacons, preds=[], centroid=None, actual=None, options={}):
     featureJS = ""
-    for beacon in beacons:
+    for i,beacon in enumerate(beacons):
         featureJS += generateAddToFeaturesAndMap(generateDonut(beacon.point.lat, beacon.point.lon, beacon.limits[1], beacon.limits[0], {'color': "red"}))
-        featureJS += generateAddToFeaturesAndMap(generateMarker(beacon.point.lat, beacon.point.lon, "kevin"))
+        featureJS += generateAddToFeaturesAndMap(generateMarker(beacon.point.lat, beacon.point.lon, f"kevin{i}"))
 
     if actual:
         featureJS += generateAddToFeaturesAndMap(generateMarker(actual.lat, actual.lon, 'actual'))
     
-    for pred in preds:
-        featureJS += generateAddToFeaturesAndMap(generateMarker(pred.lat, pred.lon, 'pred'))
+    for i,pred in enumerate(preds):
+        featureJS += generateAddToFeaturesAndMap(generateMarker(pred.lat, pred.lon, f'pred{i}'))
 
     if centroid:
         featureJS += generateAddToFeaturesAndMap(generateCircle(centroid.point.lat, centroid.point.lon, centroid.radius, {'color': 'blue', 'opacity': "0.1"}))

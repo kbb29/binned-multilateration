@@ -117,6 +117,11 @@ def great_circle_distance(ptA, ptB):
     R = 6371009 # m
     return R * central_angle
 
+def normalize_gradient_components(lat_component, lon_component, norm_to=1):
+    if lat_component != 0.0 or lon_component != 0.0:
+        denom = math.sqrt((lat_component**2 + lon_component**2)/norm_to**2)
+        return lat_component/denom, lon_component/denom
+    return 0.0, 0.0
 
 def error_component_regular(beacon, pt):
         distance_calculated = great_circle_distance(pt, beacon.point)
@@ -149,12 +154,12 @@ def error_component_find_bounds_optimize(beacon, pt, maximize):
         if dist > beacon.limits[1]:
             err = (dist - beacon.limits[1])**2
         else:
-            err = (beacon.limits[1] - dist)**1.2 / (len(beacons) - 1)
+            err = (beacon.limits[1] - dist)**1.2
     else:
         if dist < beacon.limits[0]:
             err = (beacon.limits[0] - dist)**2
         else:
-            err = (dist - beacon.limits[0])**1.2 / (len(beacons) - 1)
+            err = (dist - beacon.limits[0])**1.2
     return err
 
 
@@ -170,23 +175,7 @@ def error_component_find_bounds_other(beacon, pt):
         err = 0.0
     return err
 
-def error_component_maximize(beacon, pt):
-        distance_calculated = great_circle_distance(pt, beacon.point)
-        err = 0.0
-        if distance_calculated < beacon.limits[1]:
-            err = 0.5 * (beacon.limits[1] - distance_calculated)
-        elif distance_calculated > beacon.limits[1]:
-            err = distance_calculated - beacon.limits[1]
-        return err
 
-def error_component_minimize(beacon, pt):
-        distance_calculated = great_circle_distance(pt, beacon.point)
-        err = 0.0
-        if distance_calculated < beacon.limits[0]:
-            err = beacon.limits[0] - distance_calculated
-        elif distance_calculated > beacon.limits[0]:
-            err = 0.5 * (distance_calculated - beacon.limits[0])
-        return err
 
 # Mean Square Error
 # locations: [ (lat1, long1), ... ]
@@ -204,20 +193,6 @@ def overlap_error_find_bounds(x, beacons, idx_to_optimize, maximize) -> float:
     errs = [error_component_find_bounds_other(beacon, pt) for beacon in beacons[:idx_to_optimize] + beacons[idx_to_optimize+1:]]
     errs.append(error_component_find_bounds_optimize(beacons[idx_to_optimize], pt, maximize))
     return sum(errs) / len(beacons)
-
-#for when we want to optimize the distance only
-def overlap_error_by_distance_from_beacon(x, beacons, target_idx, bearing, minimize=False):
-    pt = get_point_at_distance_and_bearing(beacons[target_idx].point, x[0], bearing)
-    total = 0.0
-    for i,beacon in enumerate(beacons):
-        if i == target_idx: 
-            if minimize:
-                total += error_component_minimize(beacon, pt)
-            else:
-                total += error_component_maximize(beacon, pt)
-        else:
-            total += error_component_regular(beacon, pt, gradient_within_limits=False)
-    return total
 
 def grad_component_regular(beacon, pt) -> Tuple[float,float]:
         dist = great_circle_distance(pt,beacon.point)
@@ -254,69 +229,44 @@ def grad_component_regular(beacon, pt) -> Tuple[float,float]:
         lon_component = direction * (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
             
         return normalize_gradient_components(lat_component, lon_component, norm_to=magnitude)
-
-def grad_component_find_bounds(beacon, pt, is_being_optimized) -> Tuple[float, float]:
-        dist = great_circle_distance(pt,beacon.point)
+  
+def grad_component_find_bounds_optimize(beacon, pt, maximize) -> Tuple[float, float]:
+    dist = great_circle_distance(pt, beacon.point)
+    if maximize:
         if dist > beacon.limits[1]:
-            #then gradient is magnitude 2*(dist-beacon.limits[1]) in the direciton from the beacon center to the point
             magnitude = 2*(dist - beacon.limits[1])
             direction = 1
-        elif is_being_optimized:
-            #then gradient is magnitude 1.2*(beacon.limits[1] - dist) in the direction from the point to the beacon center
-            magnitude = 1.2*(dist - beacon.limits[1])
+        else:
+            magnitude = 1.2*(beacon.limits[1] - dist)**0.2
             direction = -1
-        elif dist < beacon.limits[0]:
-            #then gradient is magnitude 1 in the direction from the point to the beacon center
+    else:
+        if dist < beacon.limits[0]:
             magnitude = 2*(beacon.limits[0] - dist)
             direction = -1
         else:
-            return 0.0, 0.0
+            magnitude = 1.2*(dist - beacon.limits[0])**0.2
+            direction = 1
         
-        lat_component = direction * (pt.lat - beacon.point.lat)
-        lon_component = direction * (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
+    lat_component = direction * (pt.lat - beacon.point.lat)
+    lon_component = direction * (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
 
-        return normalize_gradient_components(lat_component, lon_component, norm_to=magnitude)
+    return normalize_gradient_components(lat_component, lon_component, norm_to=magnitude)
 
-            
-
-def grad_component_maximize(beacon, pt) -> Tuple[float,float]:
-        dist = great_circle_distance(pt,beacon.point)
-        if dist < beacon.limits[1]:
-            #then gradient is magnitude 0.5 in the direction from the point to the beacon center
-            lat_component = (beacon.point.lat - pt.lat)
-            lon_component = (beacon.point.lon - pt.lon) * math.cos(math.radians(pt.lat))
-            return normalize_gradient_components(lat_component, lon_component, norm_to=0.5)
-        elif dist > beacon.limits[1]:
-            #then gradient is magnitude 1 in the direction from the beacon center to the point
-            lat_component = pt.lat - beacon.point.lat
-            lon_component = (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
-            return normalize_gradient_components(lat_component, lon_component, norm_to=1)
-        
-        #if we are inside the bounds, then this contributes 0 to the grad
+def grad_component_find_bounds_other(beacon, pt) -> Tuple[float, float]:
+    dist = great_circle_distance(pt, beacon.point)
+    if dist > beacon.limits[1]:
+        magnitude = 2*(dist - beacon.limits[1])
+        direction = 1
+    elif dist < beacon.limits[0]:
+        magnitude = 2*(beacon.limits[0] - dist)
+        direction = -1
+    else:
         return 0.0, 0.0
 
-def grad_component_minimize(beacon, pt) -> Tuple[float,float]:
-        dist = great_circle_distance(pt,beacon.point)
-        if dist < beacon.limits[0]:
-            #then gradient is magnitude 1 in the direction from the point to the beacon center
-            lat_component = beacon.point.lat - pt.lat
-            lon_component = (beacon.point.lon - pt.lon) * math.cos(math.radians(pt.lat))
-            return normalize_gradient_components(lat_component, lon_component, norm_to=1)
-        elif dist > beacon.limits[0]:
-            #then gradient is magnitude 0.5 in the direction from the beacon center to the point
-            lat_component = (pt.lat - beacon.point.lat)
-            lon_component = (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
-            return normalize_gradient_components(lat_component, lon_component, norm_to=0.5)
-        
-        return 0.0, 0.0
-        #if we are inside the bounds, then this contributes 0 to the grad
+    lat_component = direction * (pt.lat - beacon.point.lat)
+    lon_component = direction * (pt.lon - beacon.point.lon) * math.cos(math.radians(pt.lat))
 
-def normalize_gradient_components(lat_component, lon_component, norm_to=1):
-    if lat_component != 0.0 or lon_component != 0.0:
-        denom = math.sqrt((lat_component**2 + lon_component**2)/norm_to**2)
-        return lat_component/denom, lon_component/denom
-    return 0.0, 0.0
-
+    return normalize_gradient_components(lat_component, lon_component, norm_to=magnitude)
 
 def grad_func(x, beacons) -> List[float]:
     grad = [0.0,0.0]
@@ -328,14 +278,14 @@ def grad_func(x, beacons) -> List[float]:
 
     return grad
 
-def grad_func_find_bounds(x, beacons, idx_to_optimize) -> List[float]:
-    grad = [0.0,0.0]
+def grad_func_find_bounds(x, beacons, idx_to_optimize, maximize) -> List[float]:
+    grad = [0.0, 0.0]
     pt = Point(*x)
-    component_tuples = [grad_component_find_bounds(beacon, pt, is_being_optimized=idx==idx_to_optimize) for idx,beacon in enumerate(beacons)]
+    component_tuples = [grad_component_find_bounds_other(beacon, pt) for beacon in beacons[:idx_to_optimize] + beacons[idx_to_optimize+1:]]
+    component_tuples.append( grad_component_find_bounds_optimize(beacons[idx_to_optimize], pt, maximize) )
 
-    num_total_beacons = len(beacons)
-    grad[0] = sum([latc for latc,_ in component_tuples]) / num_total_beacons
-    grad[1] = sum([lonc for _,lonc in component_tuples]) / num_total_beacons
+    grad[0] = sum([latc for latc,_ in component_tuples]) / len(beacons)
+    grad[1] = sum([lonc for _,lonc in component_tuples]) / len(beacons)
 
     return grad
 
@@ -367,16 +317,16 @@ def find_outer_bounds_for_beacon(beacons, reference_point, target_idx):
     bounds = []
     optimize_beacon = beacons[target_idx]
     reference_bearing = get_bearing(optimize_beacon.point, reference_point)
-    standard_beacons = beacons[:target_idx] + beacons[target_idx+1:]
+    #standard_beacons = beacons[:target_idx] + beacons[target_idx+1:]
     #min bound
     start_point = get_point_at_distance_and_bearing(optimize_beacon.point, optimize_beacon.limits[0] * 0.5, reference_bearing)
     #start_point = reference_point
     result = minimize(
-        overlap_error_find_bounds,                         # The error function
+        overlap_error_find_bounds,         # The error function
         start_point.to_tuple(),            # The initial guess
         args=(beacons, target_idx, False), # Additional parameters for mse
         method='L-BFGS-B',           # The optimisation algorithm
-        #jac=grad_func_find_bounds,
+        jac=grad_func_find_bounds,
         options={
             'ftol':1e-5,         # Tolerance
             'maxiter': 1e+7      # Maximum iterations
@@ -390,11 +340,11 @@ def find_outer_bounds_for_beacon(beacons, reference_point, target_idx):
     start_point = get_point_at_distance_and_bearing(optimize_beacon.point, optimize_beacon.limits[1] * 1.5, reference_bearing)
     #start_point = reference_point
     result = minimize(
-        overlap_error_find_bounds,                         # The error function
+        overlap_error_find_bounds,         # The error function
         start_point.to_tuple(),            # The initial guess
         args=(beacons, target_idx, True), # Additional parameters for mse
         method='L-BFGS-B',           # The optimisation algorithm
-        #jac=grad_func_find_bounds,
+        jac=grad_func_find_bounds,
         options={
             'ftol':1e-5,         # Tolerance
             'maxiter': 1e+7      # Maximum iterations
@@ -404,39 +354,6 @@ def find_outer_bounds_for_beacon(beacons, reference_point, target_idx):
     print(result)
     bounds.append(Point(*result.x))
     return bounds
-
-def find_outer_bounds_for_beacon_alt(beacons, reference_point, target_idx):
-    bounds = []
-    bearing = get_bearing(beacons[target_idx].point, reference_point)
-    result = minimize(
-        overlap_error_by_distance_from_beacon,                         # The error function
-        [beacons[target_idx].limits[0]],            # The initial guess
-        args=(beacons), # Additional parameters for mse
-        method='L-BFGS-B',           # The optimisation algorithm
-        #jac=grad_func,
-        options={
-            'ftol':1e-5,         # Tolerance
-            'maxiter': 1e+7      # Maximum iterations
-        })
-    print("minimize minimize\n")
-    print(result)
-    bounds.append(get_point_at_distance_and_bearing(beacons[target_idx].point, result.x, bearing))
-    result = minimize(
-        overlap_error_by_distance_from_beacon,                         # The error function
-        [beacons[target_idx].limits[0]],            # The initial guess
-        args=(beacons, target_idx, bearing, False), # Additional parameters for mse
-        method='L-BFGS-B',           # The optimisation algorithm
-        #jac=grad_func,
-        options={
-            'ftol':1e-5,         # Tolerance
-            'maxiter': 1e+7      # Maximum iterations
-        })
-
-    print("maximize minimize\n")
-    print(result)
-    bounds.append(get_point_at_distance_and_bearing(beacons[target_idx].point, result.x, bearing))
-    return bounds
-
 
 def calculate_furthest_point(x, points):
     c = Centroid(Point(*x), 0)
