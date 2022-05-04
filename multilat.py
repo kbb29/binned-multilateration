@@ -4,6 +4,7 @@ from scipy.optimize import minimize
 from typing import Tuple, List
 from plot import plotBeacons
 from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points
+from limit_intersection import limit_intersection
 
 class IntersectionError(RuntimeError):
     def __init__(self, message, result):
@@ -443,14 +444,17 @@ def find_outer_bounds_for_reference_point(beacons, intersection_point, reference
 def find_closest_limit_to_intersection(beacons, intersection_point):
     closest_limit_with_distance = min([b.get_nearest_limit_with_distance_from_point(intersection_point) for b in beacons], key=lambda l: l[1])
     closest_limit = closest_limit_with_distance[0]
-    return closest_limit 
+    return closest_limit
 
 def map_bounds_of_intersection(beacons, intersection_point, tag=''):
     closest_limit = find_closest_limit_to_intersection(beacons, intersection_point)
     bearing_of_closest_limit_point = get_bearing(closest_limit.beacon.point, intersection_point)
     closest_limit_point = get_point_at_distance_and_bearing(closest_limit.beacon.point, closest_limit.get_radius(), bearing_of_closest_limit_point)
 
-    plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point], options={'tag': str(tag)})
+    other_beacons = [b for b in beacons if b != closest_limit.beacon]
+    other_beacon_limits = [l for b in other_beacons for l in b.get_limits()]
+    intersection_points = [p for l in other_beacon_limits for p in limit_intersection(closest_limit, l)]
+    plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point] + intersection_points, options={'tag': str(tag)})
 
 def calculate_furthest_point(x, points):
     c = Centroid(Point(*x), 0)

@@ -23,7 +23,8 @@ from plot import plotBeacons
 from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points
 
 
-def intersection(limit1, limit2):
+def limit_intersection(limit1, limit2):
+    print(limit1.beacon.point, limit2.beacon.point)
     p1 = limit1.beacon.point.to_tuple()
     p2 = limit2.beacon.point.to_tuple()
     r1_meter = limit1.get_radius()
@@ -97,12 +98,17 @@ def intersection(limit1, limit2):
         is called for, because when x1 and x2 are close, x0.x0 is very close to 1, leading to some loss of
         floating point precision.
     '''
-    if (np.dot(x0, x0) <= 1) & (np.dot(n,n) == 0): # This is to secure that (1 - np.dot(x0, x0)) / np.dot(n,n) > 0
+    if (np.dot(x0, x0) > 1) or (np.dot(n,n) == 0): # This is to secure that (1 - np.dot(x0, x0)) / np.dot(n,n) > 0
         if (np.dot(n,n) == 0):
             raise RuntimeError("The centers of the circles can be neither the same point nor antipodal points.")
         else:
             raise RuntimeError("The circles do not intersect")
 
+    print(x0, n)
+    print(np.dot(x0, x0))
+    print(np.dot(n, n))
+    print((1 - np.dot(x0, x0)) / np.dot(n,n))
+    print(sqrt((1 - np.dot(x0, x0)) / np.dot(n,n)))
     t = Decimal(sqrt((1 - np.dot(x0, x0)) / np.dot(n,n)))
     t1 = t
     t2 = -t
@@ -137,6 +143,15 @@ if __name__ == '__main__':
     l1 = Limit(b1, True)
     l2 = Limit(b2, True)
     #intersection_points = intersection((37.673442, -90.234036), 107.5*1852, (36.109997, -90.953669), 145*1852)
-    intersection_points = intersection(l1, l2)
+    intersection_points = limit_intersection(l1, l2)
     print(intersection_points)
     plotBeacons([b1, b2], preds=intersection_points)
+
+    b1 = Beacon(Point(37.673442, -90.234036), (1000.0, 2000))
+    b2 = Beacon(get_point_at_distance_and_bearing(b1.point, 2000.0, 45.0), (2000.0, 5000))
+    l1 = Limit(b1, True)
+    l2 = Limit(b2, True)
+    #intersection_points = intersection((37.673442, -90.234036), 107.5*1852, (36.109997, -90.953669), 145*1852)
+    intersection_points = limit_intersection(l1, l2)
+    plotBeacons([b1, b2], preds=intersection_points)
+    
