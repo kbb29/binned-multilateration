@@ -48,7 +48,7 @@ if __name__ == '__main__':
             print(f'{i}: point not in centroid!')
 
             num_not_in_centroid += 1
-            #plotBeacons(beacons, actual=pt, centroid=centroid)
+            plotBeacons(beacons, actual=pt, centroid=centroid)
 
     radii = [c.radius for c in centroids]
     avg_radius = sum(radii) / len(radii)

@@ -3,7 +3,7 @@ from matplotlib.pyplot import magnitude_spectrum, plot
 from scipy.optimize import minimize
 from typing import Tuple, List
 from plot import plotBeacons
-from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points, normalize_bearing
+from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, IntersectionPoint, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points, normalize_bearing
 from limit_intersection import limit_intersection
 
 class IntersectionError(RuntimeError):
@@ -12,157 +12,6 @@ class IntersectionError(RuntimeError):
         self.message = message
         super().__init__(self.message)
 
-'''
-def get_bearing(pt1, pt2):
-    bearing = Geodesic.WGS84.Inverse(pt1.lat, pt1.lon, pt2.lat, pt2.lon)['azi1']
-    if bearing < 0:
-        bearing += 360
-    return bearing
-
-class Point:
-    def __init__(self, lat, lon):
-        self.lat = lat
-        self.lon = lon
-    
-    def to_tuple(self):
-        return (self.lat, self.lon)
-
-    def __repr__(self) -> str:
-        return f'[{self.lat}, {self.lon}]'
-
-    def __eq__(self, other):
-        return self.lat == other.lat and self.lon == other.lon
-
-class Beacon:
-    def __init__(self, point, limits):
-        self.point = point
-        self.limits = limits
-
-    def __eq__(self, other):
-        self.point == other.point and self.limits == other.limits
-
-    def is_within_limits(self, point):
-        dist = great_circle_distance(self.point, point)
-        return dist >= self.limits[0] and dist <= self.limits[1]
-
-    def get_limits(self):
-        return [Limit(self, True), Limit(self, False)]
-
-    def get_limits_with_distances_from_point(self, point):
-        dist = great_circle_distance(self.point, point)
-        return [(l, abs(dist - l.get_radius()))  for l in self.get_limits()]
-
-    def get_nearest_limit_with_distance_from_point(self, point):
-        return min(self.get_limits_with_distances_from_point(point), key=lambda l: l[1])
-
-class Limit:
-    def __init__(self, beacon, lower=True):
-        self.beacon = beacon
-        self.limit_index = 0 if lower else 1
-    
-    def get_radius(self):
-        return self.beacon.limits[self.limit_index]
-
-    def __eq__(self, other):
-        return self.limit_index == other.limit_index and self.beacon == other.beacon
-
-class BoundSquare:
-    def __init__(self, center, dimension):
-        self.north = get_point_at_distance_and_bearing(center, dimension/2, 0).lat
-        self.south = get_point_at_distance_and_bearing(center, dimension/2, 180).lat
-        self.west = get_point_at_distance_and_bearing(center, dimension/2, 270).lon
-        self.east = get_point_at_distance_and_bearing(center, dimension/2, 90).lon
-
-
-class Centroid:
-    def __init__(self, point, radius):
-        self.point = point
-        self.radius = radius
-        self.n = 0
-
-    def add_point(self, point):
-        self.point.lat += point.lat
-        self.point.lon += point.lon
-        self.n += 1
-
-    def divide(self):
-        self.point.lat /= self.n
-        self.point.lon /= self.n
-    
-    def set_radius(self, points):
-        self.radius = max([great_circle_distance(p, self.point) for p in points])
-
-    def includes(self, pt):
-        return great_circle_distance(pt, self.point) <= self.radius
-
-def get_point_at_distance_and_bearing(point, distance, bearing):
-    R = 6378100 #Radius of the Earth
-    brng = math.radians(bearing) #Bearing is 90 degrees converted to radians.
-    d = distance #Distance in km
-
-    #lat2  52.20444 - the lat result I'm hoping for
-    #lon2  0.36056 - the long result I'm hoping for.
-
-    lat1 = math.radians(point.lat) #Current lat point converted to radians
-    lon1 = math.radians(point.lon) #Current long point converted to radians
-
-    lat2 = math.asin( math.sin(lat1)*math.cos(d/R) +
-        math.cos(lat1)*math.sin(d/R)*math.cos(brng))
-
-    lon2 = lon1 + math.atan2(math.sin(brng)*math.sin(d/R)*math.cos(lat1),
-                math.cos(d/R)-math.sin(lat1)*math.sin(lat2))
-
-    lat2 = math.degrees(lat2)
-    lon2 = math.degrees(lon2)
-
-
-    return Point(lat2, lon2)
-
-def generate_triangle_points(center, radius):
-    return [get_point_at_distance_and_bearing(center, radius, bearing) for bearing in [0,120,240]]
-
-
-def great_circle_distance(ptA, ptB):
-    # Degrees to radians
-    phi1    = math.radians(ptA.lat)
-    lambda1 = math.radians(ptA.lon)
-
-    phi2    = math.radians(ptB.lat)
-    lambda2 = math.radians(ptB.lon)
-
-    delta_lambda = math.fabs(lambda2 - lambda1)
-
-    central_angle = \
-        math.atan2 \
-        (
-            # Numerator
-            math.sqrt
-            (
-                # First
-                math.pow
-                (
-                    math.cos(phi2) * math.sin(delta_lambda)
-                    , 2.0
-                )
-                +
-                # Second
-                math.pow
-                (
-                    math.cos(phi1) * math.sin(phi2) -
-                    math.sin(phi1) * math.cos(phi2) * math.cos(delta_lambda)
-                    , 2.0
-                )
-            ),
-            # Denominator
-            (
-                math.sin (phi1) * math.sin(phi2) +
-                math.cos (phi1) * math.cos(phi2) * math.cos(delta_lambda)
-            )
-        )
-
-    R = 6371009 # m
-    return R * central_angle
-'''
 
 def normalize_gradient_components(lat_component, lon_component, norm_to=1):
     if lat_component != 0.0 or lon_component != 0.0:
@@ -446,23 +295,45 @@ def find_closest_limit_to_intersection(beacons, intersection_point):
     closest_limit = closest_limit_with_distance[0]
     return closest_limit
 
+def find_next_boundary_point_anticlockwise(beacons, current_boundary: Limit, current_boundary_point: Point, tag=None) -> IntersectionPoint:
+    bearing_of_current_boundary_point = get_bearing(current_boundary.beacon.point, current_boundary_point)
+    other_beacons = [b for b in beacons if b != current_boundary.beacon]
+    other_beacon_limits = [l for b in other_beacons for l in b.get_limits()]
+    intersection_points = [ip for l in other_beacon_limits for ip in limit_intersection(current_boundary, l) if ip.point != current_boundary_point]
+    intersection_points_with_bearing = [(ipt, normalize_bearing(current_boundary.get_bearing_of_point(ipt.point) - bearing_of_current_boundary_point) ) for ipt in intersection_points]
+    #plotBeacons(beacons, preds=[ip.point for ip in intersection_points], actual=current_boundary_point, options={'tag': str(tag)})
+    
+    if current_boundary.limit_index == 0:
+        closest_ip = min(intersection_points_with_bearing, key=lambda ptb: ptb[1])[0]
+    else:
+        closest_ip = max(intersection_points_with_bearing, key=lambda ptb: ptb[1])[0]
+    return closest_ip
+
 def map_bounds_of_intersection(beacons, intersection_point, tag=''):
     closest_limit = find_closest_limit_to_intersection(beacons, intersection_point)
     bearing_of_closest_limit_point = get_bearing(closest_limit.beacon.point, intersection_point)
     closest_limit_point = get_point_at_distance_and_bearing(closest_limit.beacon.point, closest_limit.get_radius(), bearing_of_closest_limit_point)
-
-    other_beacons = [b for b in beacons if b != closest_limit.beacon]
-    other_beacon_limits = [l for b in other_beacons for l in b.get_limits()]
-    intersection_points = [ip for l in other_beacon_limits for ip in limit_intersection(closest_limit, l)]
-    intersection_points_with_bearing = [(ipt, normalize_bearing(closest_limit.get_bearing_of_point(ipt.point) - bearing_of_closest_limit_point) ) for ipt in intersection_points]
-    print(bearing_of_closest_limit_point)
-    print(intersection_points_with_bearing)
-    if closest_limit.limit_index == 0:
-        closest_ip = min(intersection_points_with_bearing, key=lambda ptb: ptb[1])[0]
-    else:
-        closest_ip = max(intersection_points_with_bearing, key=lambda ptb: ptb[1])[0]
     
-    plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point, closest_ip.point], options={'tag': str(tag)})
+    first_ip = find_next_boundary_point_anticlockwise(beacons, closest_limit, closest_limit_point)
+    current_ip = first_ip
+    current_limit = current_ip.limit1 if current_ip.limit2 == closest_limit else current_ip.limit2
+        
+    bounds = []
+    while True:
+        bounds.append(current_ip.point)
+        if len(bounds) > len(beacons)**2 * 4: # this is a safety net
+            raise RuntimeError('boundary mapping did not return to start point')
+        next_ip = find_next_boundary_point_anticlockwise(beacons, current_limit, current_ip.point, tag=str(len(bounds)))
+        if next_ip == first_ip: # we are back at the start, break
+            break
+        #if len(bounds) > 3: break
+        next_limit = next_ip.limit1 if next_ip.limit2 == current_limit else next_ip.limit2
+
+        current_ip = next_ip
+        current_limit = next_limit
+        
+    #plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point] + bounds, options={'tag': str(tag)})
+    return bounds
 
 def calculate_furthest_point(x, points):
     c = Centroid(Point(*x), 0)
@@ -496,12 +367,9 @@ def do_multilat(beacons, tag='', start_point=None):
         raise IntersectionError(f'the first minimization did not settle within the intersection', result)
 
     #now try to map the boundaries of the intersection
-    map_bounds_of_intersection(beacons, intersection_point, tag=tag)
-    return None
-    # generate reference points around the intersection to map the boundary
-    ref_points = generate_triangle_points(intersection_point, closest_beacon.limits[1] * 2)
-    bounds = [pt for bounds in [find_outer_bounds_for_reference_point(beacons, intersection_point, ref_pt) for ref_pt in ref_points] for pt in bounds]
-    plotBeacons(beacons, actual=intersection_point, preds=ref_points, options={'tag': f'debug-{tag}'})
+    bounds = map_bounds_of_intersection(beacons, intersection_point, tag=tag)
+
+    #plotBeacons(beacons, actual=intersection_point, preds=bounds, options={'tag': f'debug-{tag}'})
 
     #now calculate the smallest circle which encloses the boundary points we mapped
     #this is an optimization based approach.
@@ -517,6 +385,6 @@ if __name__ == '__main__':
     for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]):
         beacons = simulate_service_distances(actual, beacon_points, buckets)
         #centroid, bounds = do_multilat(beacons, tag=str(n))
-        do_multilat(beacons, tag=str(n))
-
-        #plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
+        centroid, bounds = do_multilat(beacons, tag=str(n))
+        
+        plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})

@@ -1,4 +1,4 @@
-import chevron, pathlib, os
+import chevron, pathlib, os, random
 
 template = (pathlib.Path(__file__).parent / 'map.mustache').open('r').read()
 
@@ -43,7 +43,7 @@ def plotBeacons(beacons, preds=[], centroid=None, actual=None, options={}):
 
     output = chevron.render(template, {'features': featureJS});
     
-    tag = options.get('tag', 'test')
+    tag = options.get('tag', str(random.random()))
 
     fn = pathlib.Path('/tmp') / f'map-{tag}.html'
     print('fn', fn)
