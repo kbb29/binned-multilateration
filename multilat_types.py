@@ -3,8 +3,11 @@ from geographiclib.geodesic import Geodesic
 
 def get_bearing(pt1, pt2):
     bearing = Geodesic.WGS84.Inverse(pt1.lat, pt1.lon, pt2.lat, pt2.lon)['azi1']
+    return normalize_bearing(bearing)
+
+def normalize_bearing(bearing):
     if bearing < 0:
-        bearing += 360
+        return bearing + 360
     return bearing
 
 def get_point_at_distance_and_bearing(point, distance, bearing):
@@ -95,7 +98,7 @@ class Beacon:
         self.limits = limits
 
     def __eq__(self, other):
-        self.point == other.point and self.limits == other.limits
+        return self.point == other.point and self.limits == other.limits
 
     def is_within_limits(self, point):
         dist = great_circle_distance(self.point, point)
@@ -119,8 +122,20 @@ class Limit:
     def get_radius(self):
         return self.beacon.limits[self.limit_index]
 
+    def get_bearing_of_point(self, pt):
+        return get_bearing(self.beacon.point, pt)
+
     def __eq__(self, other):
         return self.limit_index == other.limit_index and self.beacon == other.beacon
+
+class IntersectionPoint:
+    def __init__(self, pt, limit1, limit2):
+        self.point = pt
+        self.limit1 = limit1
+        self.limit2 = limit2
+    
+    def __eq__(self, other):
+        return self.point == other.point and self.limit1 == other.limit1 and self.limit2 == other.limit2
 
 class BoundSquare:
     def __init__(self, center, dimension):

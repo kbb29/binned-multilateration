@@ -3,7 +3,7 @@ from matplotlib.pyplot import magnitude_spectrum, plot
 from scipy.optimize import minimize
 from typing import Tuple, List
 from plot import plotBeacons
-from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points
+from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points, normalize_bearing
 from limit_intersection import limit_intersection
 
 class IntersectionError(RuntimeError):
@@ -453,8 +453,16 @@ def map_bounds_of_intersection(beacons, intersection_point, tag=''):
 
     other_beacons = [b for b in beacons if b != closest_limit.beacon]
     other_beacon_limits = [l for b in other_beacons for l in b.get_limits()]
-    intersection_points = [p for l in other_beacon_limits for p in limit_intersection(closest_limit, l)]
-    plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point] + intersection_points, options={'tag': str(tag)})
+    intersection_points = [ip for l in other_beacon_limits for ip in limit_intersection(closest_limit, l)]
+    intersection_points_with_bearing = [(ipt, normalize_bearing(closest_limit.get_bearing_of_point(ipt.point) - bearing_of_closest_limit_point) ) for ipt in intersection_points]
+    print(bearing_of_closest_limit_point)
+    print(intersection_points_with_bearing)
+    if closest_limit.limit_index == 0:
+        closest_ip = min(intersection_points_with_bearing, key=lambda ptb: ptb[1])[0]
+    else:
+        closest_ip = max(intersection_points_with_bearing, key=lambda ptb: ptb[1])[0]
+    
+    plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point, closest_ip.point], options={'tag': str(tag)})
 
 def calculate_furthest_point(x, points):
     c = Centroid(Point(*x), 0)
