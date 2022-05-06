@@ -363,13 +363,13 @@ def do_multilat(beacons, tag='', start_point=None):
     intersection_point = Point(*result.x)
 
     if not all([b.is_within_limits(intersection_point) for b in beacons]):
-        plotBeacons(beacons, preds=[Point(*result.x)], actual=intersection_point, options={'tag': str(tag)})
+        plotBeacons(beacons, actual=intersection_point, options={'tag': str(tag)})
         raise IntersectionError(f'the first minimization did not settle within the intersection', result)
 
     #now try to map the boundaries of the intersection
     bounds = map_bounds_of_intersection(beacons, intersection_point, tag=tag)
 
-    #plotBeacons(beacons, actual=intersection_point, preds=bounds, options={'tag': f'debug-{tag}'})
+    plotBeacons(beacons, actual=intersection_point, preds=bounds, options={'tag': f'debug-{tag}'})
 
     #now calculate the smallest circle which encloses the boundary points we mapped
     #this is an optimization based approach.
@@ -381,10 +381,20 @@ if __name__ == '__main__':
 
     buckets = [[0,500], [500,1000], [1000, 2000], [2000, 5000], [5000, 10000], [10000, 20000]]
     center = Point(45,45)
-    beacon_points = generate_triangle_points(center, 1300)
-    for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]):
+    beacon_points = generate_triangle_points(center, 1100)
+    for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]): 
         beacons = simulate_service_distances(actual, beacon_points, buckets)
-        #centroid, bounds = do_multilat(beacons, tag=str(n))
-        centroid, bounds = do_multilat(beacons, tag=str(n))
+        try:
+            centroid, bounds = do_multilat(beacons, tag=str(n))
+            
+            plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
+        except IntersectionError as e:
+            print(e)
+            pass
+    beacon_points = generate_triangle_points(center, 1300) # + [get_point_at_distance_and_bearing(center, 15900, 180)]
+    for n,actual in enumerate([Point(45.02245801238342, 45.03176042407004) ]):
+        beacons = simulate_service_distances(actual, beacon_points, buckets)
         
-        plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
+        centroid, bounds = do_multilat(beacons, tag=str(n+4))
+        
+        plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n+4)})

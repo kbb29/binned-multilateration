@@ -45,10 +45,10 @@ if __name__ == '__main__':
             centroids.append(centroid)
 
         if not centroid.includes(pt):
-            print(f'{i}: point not in centroid!')
+            print(f'{i} ({pt.to_tuple()}): point not in centroid!')
 
             num_not_in_centroid += 1
-            plotBeacons(beacons, actual=pt, centroid=centroid)
+            plotBeacons(beacons, actual=pt, preds=bounds, centroid=centroid)
 
     radii = [c.radius for c in centroids]
     avg_radius = sum(radii) / len(radii)
