@@ -161,6 +161,12 @@ class Centroid:
     def new_empty(): 
         return Centroid(Point(0,0), 0)
 
+    def new_from_points(points):
+        c = Centroid.new_empty()
+        c.add_points(points)
+        c.divide()
+        return c
+
     def add_points(self, points: List[Point]):
         for pt in points:
             self.add_point(pt)

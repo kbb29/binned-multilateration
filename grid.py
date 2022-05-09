@@ -1,5 +1,6 @@
 
-from multilat import IntersectionError, Point, Beacon, BoundSquare, grad_func, generate_triangle_points, get_bearing, get_point_at_distance_and_bearing, do_multilat, great_circle_distance, simulate_service_distances, plotBeacons, do_multilat2
+from multilat_types import Point, Beacon, BoundSquare, generate_triangle_points, get_point_at_distance_and_bearing
+from multilat import do_multilat, great_circle_distance, simulate_service_distances, plotBeacons
 from plot import plotBeacons
 import math
 
@@ -21,13 +22,11 @@ if __name__ == '__main__':
     beacon_points = generate_triangle_points(center, 1300)
     num_points = 10**2
     centroids = []
-    num_not_settled = 0
-    num_settled_2nd_attempt = 0
     num_not_in_centroid = 0
     for i,pt in enumerate(gridgen(center, 5000, num_points)):
         beacons = simulate_service_distances(pt, beacon_points, buckets)
         furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
-        centroid, bounds = do_multilat2(beacons)
+        centroid, bounds = do_multilat(beacons)
         centroids.append(centroid)
 
         if not centroid.includes(pt):
@@ -41,8 +40,6 @@ if __name__ == '__main__':
     max_radius = max(radii)
 
     print(len(radii))
-    print('not settled', num_not_settled)
-    print('settled 2nd attempt', num_settled_2nd_attempt)
     print('not in centroid',  num_not_in_centroid)
     print(avg_radius, max_radius, min(radii))
 
