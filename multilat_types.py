@@ -108,6 +108,12 @@ class Beacon:
     def get_limits(self):
         return [Limit(self, True), Limit(self, False)]
 
+    def get_upper_limit(self):
+        return Limit(self, False)
+
+    def get_lower_limit(self):
+        return Limit(self, True)
+
     def get_limits_with_distances_from_point(self, point):
         dist = great_circle_distance(self.point, point)
         return [(l, abs(dist - l.get_radius()))  for l in self.get_limits()]

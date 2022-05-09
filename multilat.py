@@ -5,6 +5,7 @@ from typing import Tuple, List
 from plot import plotBeacons
 from multilat_types import Point, Beacon, Limit, Centroid, BoundSquare, IntersectionPoint, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points, normalize_bearing
 from limit_intersection import limit_intersection
+from itertools import combinations
 
 class IntersectionError(RuntimeError):
     def __init__(self, message, result):
@@ -335,15 +336,23 @@ def map_bounds_of_intersection(beacons, intersection_point, tag=''):
     #plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point] + bounds, options={'tag': str(tag)})
     return bounds
 
-def compute_limit_intersections(beacons: List[Beacon]) -> List[IntersectionPoint]:
-    ips = []
-    for i,beacon1 in enumerate(beacons[:-1]):
-        for beacon2 in beacons[i+1:]:
-            for limit1 in beacon1.get_limits():
-                for limit2 in beacon2.get_limits():
-                    for ip in  limit_intersection(limit1, limit2):
-                        ips.append(ip)
+def compute_intersection_points_for_beacons(beacon_pair):
+    (beacon1, beacon2) = beacon_pair
+    ips  = limit_intersection( beacon1.get_lower_limit(), beacon2.get_upper_limit() )
+    ips += limit_intersection( beacon1.get_lower_limit(), beacon2.get_lower_limit() )
+    ips += limit_intersection( beacon1.get_upper_limit(), beacon2.get_upper_limit() )
+    ips += limit_intersection( beacon1.get_upper_limit(), beacon2.get_lower_limit() )
     return ips
+
+def flatten_generator(gen):
+    for thing in gen:
+        for subthing in thing:
+            yield subthing
+
+def compute_limit_intersections(beacons: List[Beacon]): # -> List[IntersectionPoint]:
+    all_beacon_combinations = combinations(beacons, 2)
+    all_intersection_points = map(compute_intersection_points_for_beacons, all_beacon_combinations)
+    return flatten_generator(all_intersection_points)
 
 def is_limit_intersection_on_target(beacons: List[Beacon], limit_intersection: IntersectionPoint) -> bool:
     beacons_to_check = filter(lambda b: b != limit_intersection.limit1.beacon and b != limit_intersection.limit2.beacon, beacons)
