@@ -1,5 +1,5 @@
 
-from multilat import IntersectionError, Point, Beacon, BoundSquare, grad_func, generate_triangle_points, get_bearing, get_point_at_distance_and_bearing, do_multilat, great_circle_distance, simulate_service_distances, plotBeacons
+from multilat import IntersectionError, Point, Beacon, BoundSquare, grad_func, generate_triangle_points, get_bearing, get_point_at_distance_and_bearing, do_multilat, great_circle_distance, simulate_service_distances, plotBeacons, do_multilat2
 from plot import plotBeacons
 import math
 
@@ -27,22 +27,8 @@ if __name__ == '__main__':
     for i,pt in enumerate(gridgen(center, 5000, num_points)):
         beacons = simulate_service_distances(pt, beacon_points, buckets)
         furthest_beacon_point = max(beacons, key=lambda b: b.limits[1]).point
-        try:
-            centroid, bounds = do_multilat(beacons, start_point=furthest_beacon_point)
-        except IntersectionError as e:
-            next_attempt = get_point_at_distance_and_bearing(center, great_circle_distance(center, furthest_beacon_point), get_bearing(furthest_beacon_point, center))
-            try:
-                centroid, bounds = do_multilat(beacons, start_point=next_attempt)
-                num_settled_2nd_attempt += 1
-            except IntersectionError as e:
-                print(f'gradient at unsettled {grad_func(e.result.x, beacons)}')
-                print(e.result)
-                plotBeacons(beacons, preds=[Point(*e.result.x)], actual=pt, options={'tag': str(i)})
-                num_not_settled += 1
-            else:
-                centroids.append(centroid)
-        else:
-            centroids.append(centroid)
+        centroid, bounds = do_multilat2(beacons)
+        centroids.append(centroid)
 
         if not centroid.includes(pt):
             print(f'{i} ({pt.to_tuple()}): point not in centroid!')

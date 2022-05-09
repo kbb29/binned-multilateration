@@ -335,6 +335,24 @@ def map_bounds_of_intersection(beacons, intersection_point, tag=''):
     #plotBeacons(beacons, actual=intersection_point, preds=[closest_limit_point] + bounds, options={'tag': str(tag)})
     return bounds
 
+def compute_limit_intersections(beacons: List[Beacon]) -> List[IntersectionPoint]:
+    ips = []
+    for i,beacon1 in enumerate(beacons[:-1]):
+        for beacon2 in beacons[i+1:]:
+            for limit1 in beacon1.get_limits():
+                for limit2 in beacon2.get_limits():
+                    for ip in  limit_intersection(limit1, limit2):
+                        ips.append(ip)
+    return ips
+
+def is_limit_intersection_on_target(beacons: List[Beacon], limit_intersection: IntersectionPoint) -> bool:
+    beacons_to_check = filter(lambda b: b != limit_intersection.limit1.beacon and b != limit_intersection.limit2.beacon, beacons)
+    return all(b.is_within_limits(limit_intersection.point) for b in beacons_to_check)
+    
+def filter_limit_intersections(beacons: List[Beacon], limit_intersections: List[IntersectionPoint]) -> List[IntersectionPoint]:
+    return filter(lambda ip: is_limit_intersection_on_target(beacons, ip), limit_intersections)
+
+
 def calculate_furthest_point(x, points):
     c = Centroid(Point(*x), 0)
     c.set_radius(points)
@@ -377,6 +395,20 @@ def do_multilat(beacons, tag='', start_point=None):
     result = minimize(calculate_furthest_point, intersection_point.to_tuple(), bounds, method='L-BFGS-B', options={'ftol': 1e-5, 'maxiter': 1e6})
     return Centroid(Point(*result.x), result.fun), bounds
 
+def do_multilat2(beacons: List[Beacon], tag=''):
+    all_intersections = compute_limit_intersections(beacons)
+    boundary_intersections = filter_limit_intersections(beacons, all_intersections)
+    bounds = [b.point for b in boundary_intersections]
+    bounds_centroid = Centroid.new_empty()
+    bounds_centroid.add_points(bounds)
+    bounds_centroid.divide()
+
+    #now calculate the smallest circle which encloses the boundary points we mapped
+    #this is an optimization based approach.
+    #there are more efficient mathematical algorithms for doing this.
+    result = minimize(calculate_furthest_point, bounds_centroid.point.to_tuple(), bounds, method='L-BFGS-B', options={'ftol': 1e-5, 'maxiter': 1e6})
+    return Centroid(Point(*result.x), result.fun), bounds
+
 if __name__ == '__main__':
 
     buckets = [[0,500], [500,1000], [1000, 2000], [2000, 5000], [5000, 10000], [10000, 20000]]
@@ -385,7 +417,7 @@ if __name__ == '__main__':
     for n,actual in enumerate([center, get_point_at_distance_and_bearing(center, 1300, 300)]): 
         beacons = simulate_service_distances(actual, beacon_points, buckets)
         try:
-            centroid, bounds = do_multilat(beacons, tag=str(n))
+            centroid, bounds = do_multilat2(beacons, tag=str(n))
             
             plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n)})
         except IntersectionError as e:
@@ -395,6 +427,6 @@ if __name__ == '__main__':
     for n,actual in enumerate([Point(45.02245801238342, 45.03176042407004) ]):
         beacons = simulate_service_distances(actual, beacon_points, buckets)
         
-        centroid, bounds = do_multilat(beacons, tag=str(n+4))
+        centroid, bounds = do_multilat2(beacons, tag=str(n+4))
         
         plotBeacons(beacons, actual=actual, preds=bounds, centroid=centroid, options={'tag': str(n+4)})

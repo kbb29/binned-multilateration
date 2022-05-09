@@ -1,5 +1,6 @@
 import math
 from geographiclib.geodesic import Geodesic
+from typing import Tuple, List
 
 def get_bearing(pt1, pt2):
     bearing = Geodesic.WGS84.Inverse(pt1.lat, pt1.lon, pt2.lat, pt2.lon)['azi1']
@@ -150,6 +151,13 @@ class Centroid:
         self.point = point
         self.radius = radius
         self.n = 0
+    
+    def new_empty(): 
+        return Centroid(Point(0,0), 0)
+
+    def add_points(self, points: List[Point]):
+        for pt in points:
+            self.add_point(pt)
 
     def add_point(self, point):
         self.point.lat += point.lat
