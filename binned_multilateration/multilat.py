@@ -1,10 +1,8 @@
-import math
-from matplotlib.pyplot import magnitude_spectrum, plot
 from scipy.optimize import minimize
 from typing import Tuple, List
-from plot import plotBeacons
-from multilat_types import Point, Beacon, Limit, Centroid, IntersectionPoint, great_circle_distance, get_point_at_distance_and_bearing, generate_triangle_points
-from limit_intersection import limit_intersection
+from .plot import plotBeacons
+from .types import Point, Beacon, Limit, Centroid, IntersectionPoint, great_circle_distance, get_point_at_distance_and_bearing, generate_triangle_points
+from .limit_intersection import limit_intersection
 from itertools import combinations, chain
 
 

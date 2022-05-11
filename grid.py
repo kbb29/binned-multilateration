@@ -1,7 +1,5 @@
 
-from multilat_types import Point, Beacon, BoundSquare, generate_triangle_points, get_point_at_distance_and_bearing
-from multilat import do_multilat, great_circle_distance, simulate_service_distances, plotBeacons
-from plot import plotBeacons
+from binned_multilateration import Point, Beacon, BoundSquare, generate_triangle_points, get_point_at_distance_and_bearing, do_multilat, great_circle_distance, simulate_service_distances, plotBeacons
 import math
 
 def gridgen(center, dimension, num_points):

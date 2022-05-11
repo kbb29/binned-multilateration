@@ -19,8 +19,7 @@ from decimal import Decimal
 from math import cos, sin, sqrt
 import math
 import numpy as np
-from plot import plotBeacons
-from multilat_types import Point, Beacon, Limit, IntersectionPoint, Centroid, BoundSquare, get_point_at_distance_and_bearing, get_bearing, great_circle_distance, generate_triangle_points
+from .types import Point, IntersectionPoint
 
 
 def limit_intersection(limit1, limit2):
@@ -127,28 +126,3 @@ def limit_intersection(limit1, limit2):
     ip2 = Point(i2_lat, i2_lon)
     return [IntersectionPoint(ip1, limit1, limit2), IntersectionPoint(ip2, limit1, limit2)]
 
-'''
-Example: the output of below is  [(36.989311051533505, -88.15142628069133), (38.2383796094578, -92.39048549120287)]
-         intersection_points = intersection((37.673442, -90.234036), 107.5*1852, (36.109997, -90.953669), 145*1852)
-         print(intersection_points)
-'''
-
-if __name__ == '__main__':
-    b1 = Beacon(Point(37.673442, -90.234036), (199090.0, 199090 + 90000))
-    b2 = Beacon(Point(36.109997, -90.953669), (268540, 268540 + 90000))
-    l1 = Limit(b1, True)
-    l2 = Limit(b2, True)
-    #intersection_points = intersection((37.673442, -90.234036), 107.5*1852, (36.109997, -90.953669), 145*1852)
-    intersection_points = limit_intersection(l1, l2)
-    print(intersection_points)
-    plotBeacons([b1, b2], preds=intersection_points)
-
-    b1 = Beacon(Point(37.673442, -90.234036), (1000.0, 2000))
-    b2 = Beacon(get_point_at_distance_and_bearing(b1.point, 2000.0, 45.0), (2000.0, 5000))
-    l1 = Limit(b1, True)
-    l2 = Limit(b2, True)
-    #intersection_points = intersection((37.673442, -90.234036), 107.5*1852, (36.109997, -90.953669), 145*1852)
-    intersection_points = limit_intersection(l1, l2)
-    print(intersection_points)
-    plotBeacons([b1, b2], preds=intersection_points)
-    

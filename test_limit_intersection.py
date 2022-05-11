@@ -1,6 +1,5 @@
 import unittest, math
-from limit_intersection import limit_intersection
-from multilat_types import Beacon, Limit, Point, IntersectionPoint, get_point_at_distance_and_bearing
+from binned_multilateration import limit_intersection, Beacon, Limit, Point, IntersectionPoint, get_point_at_distance_and_bearing
 
 class TestBearingMethods(unittest.TestCase):
     def test_given(self):
